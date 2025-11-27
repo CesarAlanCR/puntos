@@ -53,10 +53,8 @@ async function startCamera() {
         
         video.srcObject = stream;
         
-        // Mostrar/ocultar botones
+        // Ocultar botón de inicio
         document.getElementById('start-camera').style.display = 'none';
-        document.getElementById('stop-camera').style.display = 'inline-block';
-        document.getElementById('simulate-detection').style.display = 'inline-block';
         
         // Cargar el modelo si no está cargado
         if (!model) {
@@ -110,10 +108,8 @@ function stopCamera() {
     // Limpiar historial de detecciones
     detectedObjects.clear();
     
-    // Mostrar/ocultar botones
+    // Mostrar botón de inicio
     document.getElementById('start-camera').style.display = 'inline-block';
-    document.getElementById('stop-camera').style.display = 'none';
-    document.getElementById('simulate-detection').style.display = 'none';
     
     addLog('Cámara detenida');
 }
