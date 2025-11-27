@@ -4,6 +4,8 @@ let video = null;
 let canvas = null;
 let stream = null;
 let detectionInterval = null;
+let model = null;
+let detecting = false;
 
 // Inicializar elementos cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
@@ -45,9 +47,23 @@ async function startCamera() {
         document.getElementById('stop-camera').style.display = 'inline-block';
         document.getElementById('simulate-detection').style.display = 'inline-block';
         
-        // Iniciar detección automática (cada 2 segundos)
-        // TODO: En producción, esto llamará a la IA real
-        // detectionInterval = setInterval(detectCan, 2000);
+        // Cargar el modelo si no está cargado
+        if (!model) {
+            addLog('Cargando modelo de detección (COCO-SSD)...');
+            try {
+                model = await cocoSsd.load();
+                addLog('Modelo cargado');
+            } catch (err) {
+                console.error('Error cargando modelo:', err);
+                addLog('Error cargando modelo de detección', 'error');
+            }
+        }
+
+        // Iniciar detección continua en el cliente
+        if (model && !detecting) {
+            detecting = true;
+            detectionLoop();
+        }
         
         addLog('Cámara iniciada correctamente');
         
@@ -116,6 +132,44 @@ async function detectCan() {
         }
     }, 'image/jpeg');
     */
+}
+
+// Loop de detección con el modelo cargado
+async function detectionLoop() {
+    if (!model || !video || video.paused || video.ended) {
+        detecting = false;
+        return;
+    }
+
+    try {
+        // Ejecutar detección en el frame actual
+        const predictions = await model.detect(video);
+
+        // Buscar clases que puedan corresponder a latas de aluminio
+        // COCO-SSD no tiene clase "can" explícita; usamos "bottle" y "cup" como proxy
+        const canLike = predictions.find(p => {
+            return (p.class === 'bottle' || p.class === 'cup' || p.class === 'bottle');
+        });
+
+        if (canLike && canLike.score > 0.6) {
+            // Mostrar overlay de detección
+            showDetectionAnimation();
+            addLog(`Detección: ${canLike.class} (${(canLike.score*100).toFixed(1)}%)`);
+            // Llamar al backend para registrar el punto
+            await processDetection({});
+            // Esperar un poco para evitar múltiples registros por el mismo objeto
+            await sleep(1500);
+        }
+    } catch (err) {
+        console.error('Error en detectionLoop:', err);
+    }
+
+    // Volver a ejecutar
+    setTimeout(detectionLoop, 500);
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Procesar una detección exitosa
