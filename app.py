@@ -155,7 +155,7 @@ def detect_can():
             'user_id': user_id,
             'type': 'can_detected',
             'points': points_to_add,
-            'description': 'Lata de aluminio detectada',
+            'description': 'Botella de plástico detectada',
             'created_at': datetime.utcnow()
         })
         

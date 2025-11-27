@@ -493,6 +493,17 @@ body {
     }
 }
 
+@keyframes pulse-red {
+    0%, 100% { 
+        border-color: var(--danger-color);
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+    }
+    50% { 
+        border-color: #f87171;
+        box-shadow: 0 0 30px rgba(248, 113, 113, 0.7);
+    }
+}
+
 .detection-box {
     position: absolute;
     border: 4px solid var(--primary-color);
@@ -506,6 +517,7 @@ body {
     border-color: var(--danger-color);
     background: rgba(239, 68, 68, 0.15);
     box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+    animation: pulse-red 1s infinite;
 }
 
 .detection-label {

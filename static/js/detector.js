@@ -164,24 +164,18 @@ async function detectionLoop() {
         // Ejecutar detección en el frame actual
         const predictions = await model.detect(video);
 
-        // Buscar objetos reciclables: plástico, metal y cartón
+        // Buscar objetos de plástico únicamente
         const recyclableClasses = {
             // Plástico
-            'bottle': '🍾 Botella (plástico)',
-            // Metal
-            'bowl': '🥣 Recipiente (metal)',
-            'fork': '🍴 Tenedor (metal)',
-            'knife': '🔪 Cuchillo (metal)',
-            'spoon': '🥄 Cuchara (metal)',
-            // Cartón/Papel (detectables indirectamente)
-            'book': '📚 Libro (cartón/papel)',
-            'laptop': '💻 Laptop (metal/plástico)'
+            'bottle': '🍾 Botella (plástico)'
         };
 
         const threshold = 0.55; // Umbral optimizado
         const validPredictions = predictions.filter(p => p.score >= threshold && p.class !== 'person');
         let detectionTarget = null;
+        let detectedClass = null;
 
+        // Primero buscar objetos reciclables
         for (const prediction of validPredictions) {
             if (recyclableClasses[prediction.class]) {
                 detectionTarget = {
@@ -189,16 +183,19 @@ async function detectionLoop() {
                     label: recyclableClasses[prediction.class],
                     prediction
                 };
+                detectedClass = prediction.class;
                 break;
             }
         }
 
+        // Si no hay reciclable, buscar cualquier objeto
         if (!detectionTarget && validPredictions.length > 0) {
             detectionTarget = {
                 type: 'non-recyclable',
                 label: `🚫 ${validPredictions[0].class} (No reciclable)`,
                 prediction: validPredictions[0]
             };
+            detectedClass = validPredictions[0].class;
         }
 
         if (detectionTarget) {
@@ -210,34 +207,36 @@ async function detectionLoop() {
             };
 
             showDetectionAnimation(
-                detectionTarget.label,
+                null, // No mostrar etiqueta con nombre
                 { x, y, width, height },
                 overlayOptions
             );
 
+            // Verificar cooldown usando la clase detectada
+            const currentTime = Date.now();
+            const lastDetection = detectedObjects.get(detectedClass);
+            const canProcess = !lastDetection || (currentTime - lastDetection) > DETECTION_COOLDOWN;
+
             if (detectionTarget.type === 'recyclable') {
-                const objectClass = detectionTarget.prediction.class;
-                const currentTime = Date.now();
-                
-                // Verificar si este objeto ya fue detectado recientemente
-                const lastDetection = detectedObjects.get(objectClass);
-                const canProcess = !lastDetection || (currentTime - lastDetection) > DETECTION_COOLDOWN;
-                
                 if (canProcess) {
                     // Registrar la detección
-                    detectedObjects.set(objectClass, currentTime);
+                    detectedObjects.set(detectedClass, currentTime);
                     
-                    addLog(`Detección: ${detectionTarget.label} (${(detectionTarget.prediction.score * 100).toFixed(1)}%)`);
-                    await processDetection({ object: objectClass, confidence: detectionTarget.prediction.score });
+                    addLog(`Objeto reciclable detectado (${(detectionTarget.prediction.score * 100).toFixed(1)}%)`);
+                    await processDetection({ object: detectedClass, confidence: detectionTarget.prediction.score });
                     await sleep(2000);
                 } else {
                     // Objeto ya contabilizado recientemente
                     const timeLeft = Math.ceil((DETECTION_COOLDOWN - (currentTime - lastDetection)) / 1000);
-                    addLog(`${detectionTarget.label} ya contabilizado. Espera ${timeLeft}s`, 'info');
+                    addLog(`Objeto ya contabilizado. Espera ${timeLeft}s`, 'info');
                     await sleep(1000);
                 }
             } else {
-                addLog(`Objeto no reciclable detectado: ${detectionTarget.prediction.class} (${(detectionTarget.prediction.score * 100).toFixed(1)}%)`, 'warning');
+                // Objeto no reciclable - registrar para evitar spam
+                if (canProcess) {
+                    detectedObjects.set(detectedClass, currentTime);
+                    addLog(`Objeto no reciclable detectado (${(detectionTarget.prediction.score * 100).toFixed(1)}%)`, 'warning');
+                }
                 await sleep(1500);
             }
         } else {
@@ -348,16 +347,7 @@ function showDetectionAnimation(objectName = '♻️ Objeto detectado', bbox = n
     box.style.width = `${bbox.width * scaleX}px`;
     box.style.height = `${bbox.height * scaleY}px`;
 
-    // Crear la etiqueta
-    const label = document.createElement('div');
-    label.className = 'detection-label';
-    if (variant === 'non-recyclable') {
-        label.classList.add('label-non-recyclable');
-    }
-    label.textContent = objectName;
-
-    // Añadir al overlay
-    box.appendChild(label);
+    // No agregar etiqueta con nombre, solo el recuadro
     overlay.appendChild(box);
 }
 
