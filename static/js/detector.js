@@ -27,11 +27,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (simulateBtn) {
         simulateBtn.addEventListener('click', simulateDetection);
     }
+    
+    // Intentar iniciar la cámara automáticamente al cargar la página
+    autoInitCamera();
 });
 
 // Iniciar la cámara
 async function startCamera() {
     try {
+        // Evitar doble inicio
+        if (stream) {
+            setStatus('Cámara ya iniciada', 'info');
+            return true;
+        }
+
         stream = await navigator.mediaDevices.getUserMedia({ 
             video: { 
                 width: 640, 
@@ -53,9 +62,11 @@ async function startCamera() {
             try {
                 model = await cocoSsd.load();
                 addLog('Modelo cargado');
+                setStatus('Modelo cargado. Detectando...', 'ok');
             } catch (err) {
                 console.error('Error cargando modelo:', err);
                 addLog('Error cargando modelo de detección', 'error');
+                setStatus('Error cargando modelo', 'error');
             }
         }
 
@@ -66,10 +77,13 @@ async function startCamera() {
         }
         
         addLog('Cámara iniciada correctamente');
-        
+        setStatus('Cámara activa', 'ok');
+        return true;
     } catch (error) {
         console.error('Error al acceder a la cámara:', error);
-        alert('No se pudo acceder a la cámara. Verifica los permisos.');
+        // No mostrar alerta intrusiva en auto-init, usar status
+        setStatus('Error: permiso de cámara denegado o no disponible', 'error');
+        return false;
     }
 }
 
@@ -281,6 +295,42 @@ function playSuccessSound() {
         // Ignorar errores de audio
     }
 }
+
+// Auto-init logic with retries and user-friendly status
+async function autoInitCamera(retries = 3, delayMs = 1000) {
+    setStatus('Intentando iniciar cámara...', 'info');
+    for (let i = 0; i < retries; i++) {
+        try {
+            const ok = await startCamera();
+            if (ok) {
+                setStatus('Cámara iniciada y lista', 'ok');
+                return true;
+            }
+        } catch (err) {
+            console.warn('AutoInit intento fallido', i, err);
+        }
+        setStatus(`Reintentando cámara... (${i + 1}/${retries})`, 'info');
+        await sleep(delayMs * (i + 1));
+    }
+    setStatus('No se pudo iniciar la cámara automáticamente', 'error');
+    return false;
+}
+
+// Mostrar estado de cámara en UI
+function setStatus(message, type = 'info') {
+    const el = document.getElementById('camera-status');
+    if (!el) return;
+    el.textContent = `Estado: ${message}`;
+    el.className = 'camera-status ' + (type ? `status-${type}` : '');
+}
+
+// Detener cámara si el usuario sale de la página
+window.addEventListener('pagehide', () => {
+    stopCamera();
+});
+window.addEventListener('beforeunload', () => {
+    stopCamera();
+});
 
 // Actualizar estadísticas periódicamente
 setInterval(async function() {
