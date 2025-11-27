@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Error de Base de Datos - EcoPuntos{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="auth-card" style="max-width:800px; margin:3rem auto;">
+        <div class="auth-header">
+            <h1>⚠️ Error de conexión a la base de datos</h1>
+            <p>No se puede establecer conexión con MongoDB.</p>
+        </div>
+
+        <div class="alert alert-error">
+            <p>{{ message }}</p>
+        </div>
+
+        <div style="margin-top:1rem;">
+            <h3>¿Qué puedes revisar?</h3>
+            <ul>
+                <li>Si estás ejecutando la app en tu PC (no en Docker), asegúrate de que el servicio Mongo esté accesible en el host. Para este proyecto, el contenedor de Mongo se expone por defecto en el puerto <strong>27018</strong>.</li>
+                <li>Si quieres usar Mongo en el host en el puerto estándar, exporta la variable de entorno <code>MONGO_URI</code> con el valor correcto, por ejemplo: <code>mongodb://localhost:27017/puntos_db</code></li>
+                <li>Si prefieres usar Docker (recomendado), en el directorio del proyecto ejecuta: <code>docker compose up --build</code></li>
+            </ul>
+        </div>
+
+        <div style="margin-top:1.5rem; text-align:center;">
+            <a href="{{ url_for('index') }}" class="btn btn-primary">Volver al inicio</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

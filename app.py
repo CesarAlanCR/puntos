@@ -8,8 +8,26 @@ from functools import wraps
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['MONGO_URI'] = os.environ.get('MONGO_URI', 'mongodb://mongodb:27017/puntos_db')
+
+# Use MONGO_URI from environment when provided. For local development (running
+# Flask on the host) we default to localhost:27018 because the project's
+# docker-compose maps container 27017 -> host 27018 to avoid conflicts.
+app.config['MONGO_URI'] = os.environ.get('MONGO_URI', 'mongodb://localhost:27018/puntos_db')
 mongo = PyMongo(app)
+
+from pymongo.errors import ServerSelectionTimeoutError
+
+
+# Helper: comprobar conexión a la base de datos. Devuelve True si responde.
+def ping_db(timeout_ms: int = 2000) -> bool:
+    try:
+        # Comprobación rápida de disponibilidad
+        mongo.cx.admin.command('ping')
+        return True
+    except ServerSelectionTimeoutError:
+        return False
+    except Exception:
+        return False
 
 # Decorator para rutas protegidas
 def login_required(f):
@@ -30,6 +48,9 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        # Verificar conexión a la base de datos
+        if not ping_db():
+            return render_template('error_db.html', message='No se puede conectar a la base de datos. Asegúrate de que MongoDB esté en ejecución y que MONGO_URI sea correcto.')
         email = request.form.get('email')
         password = request.form.get('password')
         name = request.form.get('name')
@@ -57,6 +78,9 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        # Verificar conexión a la base de datos
+        if not ping_db():
+            return render_template('error_db.html', message='No se puede conectar a la base de datos. Asegúrate de que MongoDB esté en ejecución y que MONGO_URI sea correcto.')
         email = request.form.get('email')
         password = request.form.get('password')
         
@@ -79,6 +103,8 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    if not ping_db():
+        return render_template('error_db.html', message='No se puede conectar a la base de datos. Intenta levantar los servicios o verifica la variable MONGO_URI.')
     user = mongo.db.users.find_one({'_id': ObjectId(session['user_id'])})
     promotions = list(mongo.db.promotions.find({'active': True}))
     history = list(mongo.db.transactions.find({'user_id': session['user_id']}).sort('created_at', -1).limit(10))
@@ -88,6 +114,8 @@ def dashboard():
 @app.route('/detector')
 @login_required
 def detector():
+    if not ping_db():
+        return render_template('error_db.html', message='No se puede conectar a la base de datos. Intenta levantar los servicios o verifica la variable MONGO_URI.')
     user = mongo.db.users.find_one({'_id': ObjectId(session['user_id'])})
     return render_template('detector.html', user=user)
 
@@ -101,6 +129,9 @@ def detect_can():
     """
     try:
         user_id = session['user_id']
+        # Verificar conexión a la base de datos
+        if not ping_db():
+            return jsonify({'success': False, 'error': 'No se puede conectar a la base de datos'}), 500
         
         # Aquí iría la lógica de detección con IA
         # Por ahora, simulamos que siempre se detecta una lata
@@ -146,6 +177,8 @@ def redeem_promotion(promotion_id):
     """Canjear una promoción restando puntos del usuario"""
     try:
         user_id = session['user_id']
+        if not ping_db():
+            return jsonify({'success': False, 'error': 'No se puede conectar a la base de datos'}), 500
         user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
         promotion = mongo.db.promotions.find_one({'_id': ObjectId(promotion_id)})
         
@@ -187,6 +220,8 @@ def redeem_promotion(promotion_id):
 @login_required
 def user_stats():
     """Obtener estadísticas del usuario"""
+    if not ping_db():
+        return jsonify({'success': False, 'error': 'No se puede conectar a la base de datos'}), 500
     user = mongo.db.users.find_one({'_id': ObjectId(session['user_id'])})
     return jsonify({
         'points': user['points'],
@@ -199,7 +234,9 @@ def user_stats():
 def create_promotion():
     """Endpoint para crear promociones (simplificado)"""
     data = request.json
-    
+    if not ping_db():
+        return jsonify({'success': False, 'error': 'No se puede conectar a la base de datos'}), 500
+
     mongo.db.promotions.insert_one({
         'name': data['name'],
         'description': data['description'],
