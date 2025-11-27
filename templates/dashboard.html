@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - EcoPuntos{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="dashboard-header">
+        <h1>Bienvenido, {{ user.name }}! 👋</h1>
+    </div>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">⭐</div>
+            <div class="stat-info">
+                <h3>{{ user.points }}</h3>
+                <p>Puntos Totales</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">🥫</div>
+            <div class="stat-info">
+                <h3>{{ user.cans_detected }}</h3>
+                <p>Latas Recicladas</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">🌍</div>
+            <div class="stat-info">
+                <h3>{{ (user.cans_detected * 0.015) | round(2) }}</h3>
+                <p>Kg de CO₂ Ahorrados</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="dashboard-grid">
+        <div class="dashboard-section">
+            <h2>🎁 Promociones Disponibles</h2>
+            <div class="promotions-list">
+                {% if promotions %}
+                    {% for promotion in promotions %}
+                    <div class="promotion-card">
+                        <h3>{{ promotion.name }}</h3>
+                        <p>{{ promotion.description }}</p>
+                        <div class="promotion-footer">
+                            <span class="points-badge">{{ promotion.points_required }} puntos</span>
+                            {% if user.points >= promotion.points_required %}
+                            <button class="btn btn-success" onclick="redeemPromotion('{{ promotion._id }}')">
+                                Canjear
+                            </button>
+                            {% else %}
+                            <button class="btn btn-disabled" disabled>
+                                Puntos insuficientes
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-state">No hay promociones disponibles en este momento.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="dashboard-section">
+            <h2>📊 Historial Reciente</h2>
+            <div class="history-list">
+                {% if history %}
+                    {% for transaction in history %}
+                    <div class="history-item">
+                        <div class="history-info">
+                            <span class="history-description">{{ transaction.description }}</span>
+                            <span class="history-date">{{ transaction.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                        </div>
+                        <span class="history-points {% if transaction.points > 0 %}positive{% else %}negative{% endif %}">
+                            {% if transaction.points > 0 %}+{% endif %}{{ transaction.points }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-state">No tienes transacciones aún.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="quick-actions">
+        <a href="{{ url_for('detector') }}" class="btn btn-large btn-primary">
+            📷 Ir al Detector de Latas
+        </a>
+    </div>
+</div>
+
+<script>
+function redeemPromotion(promotionId) {
+    if (!confirm('¿Estás seguro de que deseas canjear esta promoción?')) {
+        return;
+    }
+    
+    fetch(`/api/redeem_promotion/${promotionId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error al canjear la promoción');
+        console.error(error);
+    });
+}
+</script>
+{% endblock %}

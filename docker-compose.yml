@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # Base de datos MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: puntos_mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: puntos_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - puntos_network
+
+  # Aplicación Flask
+  web:
+    build: .
+    container_name: puntos_web
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+      - SECRET_KEY=tu-clave-secreta-super-segura-cambiala-en-produccion
+      - MONGO_URI=mongodb://mongodb:27017/puntos_db
+    volumes:
+      - ./static:/app/static
+      - ./templates:/app/templates
+      - ./uploads:/app/uploads
+    depends_on:
+      - mongodb
+    networks:
+      - puntos_network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  puntos_network:
+    driver: bridge

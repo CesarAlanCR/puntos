@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar Sesión - EcoPuntos{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1>♻️ EcoPuntos</h1>
+            <p>Inicia sesión para comenzar a reciclar</p>
+        </div>
+        
+        {% if error %}
+        <div class="alert alert-error">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        <form method="POST" action="{{ url_for('login') }}" class="auth-form">
+            <div class="form-group">
+                <label for="email">Correo Electrónico</label>
+                <input type="email" id="email" name="email" required placeholder="tu@email.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" required placeholder="********">
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>¿No tienes cuenta? <a href="{{ url_for('register') }}">Regístrate aquí</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

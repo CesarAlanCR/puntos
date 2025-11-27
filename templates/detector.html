@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Detector de Latas - EcoPuntos{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="detector-header">
+        <h1>📷 Detector de Latas de Aluminio</h1>
+        <p>Coloca una lata frente a la cámara para ganar puntos</p>
+    </div>
+    
+    <div class="detector-stats">
+        <div class="detector-stat">
+            <span class="stat-label">Puntos:</span>
+            <span class="stat-value" id="current-points">{{ user.points }}</span>
+        </div>
+        <div class="detector-stat">
+            <span class="stat-label">Latas detectadas hoy:</span>
+            <span class="stat-value" id="cans-today">{{ user.cans_detected }}</span>
+        </div>
+    </div>
+    
+    <div class="detector-container">
+        <div class="video-section">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas" style="display: none;"></canvas>
+            
+            <div class="detection-overlay" id="detection-overlay" style="display: none;">
+                <div class="detection-box"></div>
+                <span class="detection-label">¡Lata detectada! 🥫</span>
+            </div>
+            
+            <div class="video-controls">
+                <button id="start-camera" class="btn btn-primary">Iniciar Cámara</button>
+                <button id="stop-camera" class="btn btn-secondary" style="display: none;">Detener Cámara</button>
+                <button id="simulate-detection" class="btn btn-success" style="display: none;">
+                    Simular Detección (Demo)
+                </button>
+            </div>
+        </div>
+        
+        <div class="detection-info">
+            <h3>💡 Instrucciones</h3>
+            <ul>
+                <li>Haz clic en "Iniciar Cámara" para activar la detección</li>
+                <li>Coloca una lata de aluminio frente a la cámara</li>
+                <li>El sistema detectará automáticamente la lata usando IA</li>
+                <li>Recibirás 1 punto por cada lata detectada</li>
+                <li>Los puntos se actualizarán en tiempo real</li>
+            </ul>
+            
+            <div class="detection-log">
+                <h4>📝 Registro de Detecciones</h4>
+                <div id="detection-log" class="log-content">
+                    <p class="log-empty">Esperando detecciones...</p>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <h4>🤖 Sobre la IA</h4>
+                <p>El sistema utiliza modelos de visión por computadora (YOLO/OpenCV) para detectar latas de aluminio en tiempo real.</p>
+                <p class="note"><strong>Nota:</strong> La detección con IA aún no está implementada. Usa el botón "Simular Detección" para probar el sistema.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/detector.js') }}"></script>
+{% endblock %}
