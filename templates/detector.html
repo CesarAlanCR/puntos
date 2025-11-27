@@ -5,8 +5,8 @@
 {% block content %}
 <div class="container">
     <div class="detector-header">
-        <h1>📷 Detector de Latas de Aluminio</h1>
-        <p>Coloca una lata frente a la cámara para ganar puntos</p>
+        <h1>📷 Detector de Reciclables</h1>
+        <p>Coloca objetos de plástico, metal o cartón frente a la cámara para ganar puntos</p>
     </div>
     
     <div class="detector-stats">
@@ -15,22 +15,20 @@
             <span class="stat-value" id="current-points">{{ user.points }}</span>
         </div>
         <div class="detector-stat">
-            <span class="stat-label">Latas detectadas hoy:</span>
+            <span class="stat-label">Objetos detectados hoy:</span>
             <span class="stat-value" id="cans-today">{{ user.cans_detected }}</span>
         </div>
     </div>
     
     <div class="detector-container">
         <div class="video-section">
-            <video id="video" autoplay playsinline></video>
-            <canvas id="canvas" style="display: none;"></canvas>
-            <div id="camera-status" class="camera-status">Estado: inactivo</div>
-            
-            <div class="detection-overlay" id="detection-overlay" style="display: none;">
-                <div class="detection-box"></div>
-                <span class="detection-label">¡Lata detectada! 🥫</span>
+            <div class="video-wrapper">
+                <video id="video" autoplay playsinline></video>
+                <canvas id="canvas" style="display: none;"></canvas>
+                <div class="detection-overlay" id="detection-overlay" style="display: none;"></div>
             </div>
-            
+            <div id="camera-status" class="camera-status">Estado: inactivo</div>
+
             <div class="video-controls">
                 <button id="start-camera" class="btn btn-primary">Iniciar Cámara</button>
                 <button id="stop-camera" class="btn btn-secondary" style="display: none;">Detener Cámara</button>
@@ -44,9 +42,9 @@
             <h3>💡 Instrucciones</h3>
             <ul>
                 <li>Haz clic en "Iniciar Cámara" para activar la detección</li>
-                <li>Coloca una lata de aluminio frente a la cámara</li>
-                <li>El sistema detectará automáticamente la lata usando IA</li>
-                <li>Recibirás 1 punto por cada lata detectada</li>
+                <li>Coloca objetos reciclables frente a la cámara</li>
+                <li>Detecta: <strong>plástico</strong> (botellas), <strong>metal</strong> (cubiertos), <strong>cartón</strong> (cajas, libros)</li>
+                <li>Recibirás 1 punto por cada objeto detectado</li>
                 <li>Los puntos se actualizarán en tiempo real</li>
             </ul>
             
@@ -59,15 +57,15 @@
             
             <div class="info-box">
                 <h4>🤖 Sobre la IA</h4>
-                <p>El sistema utiliza modelos de visión por computadora (YOLO/OpenCV) para detectar latas de aluminio en tiempo real.</p>
-                <p class="note"><strong>Nota:</strong> La detección con IA aún no está implementada. Usa el botón "Simular Detección" para probar el sistema.</p>
+                <p>El sistema utiliza un modelo de detección optimizado para navegador que identifica objetos reciclables en tiempo real.</p>
+                <p class="note"><strong>Detección activa:</strong> Plástico (botellas), Metal (cubiertos, recipientes), Cartón (libros, cajas).</p>
             </div>
         </div>
     </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/detector.js') }}"></script>
-<!-- Cargar TensorFlow.js y el modelo COCO-SSD desde CDN para detección en el cliente -->
+<!-- Cargar TensorFlow.js y COCO-SSD optimizado -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
 {% endblock %}

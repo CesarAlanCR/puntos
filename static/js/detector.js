@@ -6,6 +6,8 @@ let stream = null;
 let detectionInterval = null;
 let model = null;
 let detecting = false;
+let detectedObjects = new Map(); // Almacenar objetos detectados con timestamp
+const DETECTION_COOLDOWN = 30000; // 30 segundos de cooldown por objeto
 
 // Inicializar elementos cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
@@ -58,10 +60,14 @@ async function startCamera() {
         
         // Cargar el modelo si no está cargado
         if (!model) {
-            addLog('Cargando modelo de detección (COCO-SSD)...');
+            addLog('Cargando modelo de detección...');
             try {
+                // Verificar si cocoSsd está disponible
+                if (typeof cocoSsd === 'undefined') {
+                    throw new Error('COCO-SSD no está disponible');
+                }
                 model = await cocoSsd.load();
-                addLog('Modelo cargado');
+                addLog('Modelo cargado correctamente');
                 setStatus('Modelo cargado. Detectando...', 'ok');
             } catch (err) {
                 console.error('Error cargando modelo:', err);
@@ -100,6 +106,9 @@ function stopCamera() {
     }
     
     video.srcObject = null;
+    
+    // Limpiar historial de detecciones
+    detectedObjects.clear();
     
     // Mostrar/ocultar botones
     document.getElementById('start-camera').style.display = 'inline-block';
@@ -159,27 +168,93 @@ async function detectionLoop() {
         // Ejecutar detección en el frame actual
         const predictions = await model.detect(video);
 
-        // Buscar clases que puedan corresponder a latas de aluminio
-        // COCO-SSD no tiene clase "can" explícita; usamos "bottle" y "cup" como proxy
-        const canLike = predictions.find(p => {
-            return (p.class === 'bottle' || p.class === 'cup' || p.class === 'bottle');
-        });
+        // Buscar objetos reciclables: plástico, metal y cartón
+        const recyclableClasses = {
+            // Plástico
+            'bottle': '🍾 Botella (plástico)',
+            // Metal
+            'bowl': '🥣 Recipiente (metal)',
+            'fork': '🍴 Tenedor (metal)',
+            'knife': '🔪 Cuchillo (metal)',
+            'spoon': '🥄 Cuchara (metal)',
+            // Cartón/Papel (detectables indirectamente)
+            'book': '📚 Libro (cartón/papel)',
+            'laptop': '💻 Laptop (metal/plástico)'
+        };
 
-        if (canLike && canLike.score > 0.6) {
-            // Mostrar overlay de detección
-            showDetectionAnimation();
-            addLog(`Detección: ${canLike.class} (${(canLike.score*100).toFixed(1)}%)`);
-            // Llamar al backend para registrar el punto
-            await processDetection({});
-            // Esperar un poco para evitar múltiples registros por el mismo objeto
-            await sleep(1500);
+        const threshold = 0.55; // Umbral optimizado
+        const validPredictions = predictions.filter(p => p.score >= threshold && p.class !== 'person');
+        let detectionTarget = null;
+
+        for (const prediction of validPredictions) {
+            if (recyclableClasses[prediction.class]) {
+                detectionTarget = {
+                    type: 'recyclable',
+                    label: recyclableClasses[prediction.class],
+                    prediction
+                };
+                break;
+            }
+        }
+
+        if (!detectionTarget && validPredictions.length > 0) {
+            detectionTarget = {
+                type: 'non-recyclable',
+                label: `🚫 ${validPredictions[0].class} (No reciclable)`,
+                prediction: validPredictions[0]
+            };
+        }
+
+        if (detectionTarget) {
+            // COCO-SSD retorna bbox como [x, y, width, height]
+            const [x, y, width, height] = detectionTarget.prediction.bbox;
+            
+            const overlayOptions = {
+                variant: detectionTarget.type === 'non-recyclable' ? 'non-recyclable' : 'recyclable'
+            };
+
+            showDetectionAnimation(
+                detectionTarget.label,
+                { x, y, width, height },
+                overlayOptions
+            );
+
+            if (detectionTarget.type === 'recyclable') {
+                const objectClass = detectionTarget.prediction.class;
+                const currentTime = Date.now();
+                
+                // Verificar si este objeto ya fue detectado recientemente
+                const lastDetection = detectedObjects.get(objectClass);
+                const canProcess = !lastDetection || (currentTime - lastDetection) > DETECTION_COOLDOWN;
+                
+                if (canProcess) {
+                    // Registrar la detección
+                    detectedObjects.set(objectClass, currentTime);
+                    
+                    addLog(`Detección: ${detectionTarget.label} (${(detectionTarget.prediction.score * 100).toFixed(1)}%)`);
+                    await processDetection({ object: objectClass, confidence: detectionTarget.prediction.score });
+                    await sleep(2000);
+                } else {
+                    // Objeto ya contabilizado recientemente
+                    const timeLeft = Math.ceil((DETECTION_COOLDOWN - (currentTime - lastDetection)) / 1000);
+                    addLog(`${detectionTarget.label} ya contabilizado. Espera ${timeLeft}s`, 'info');
+                    await sleep(1000);
+                }
+            } else {
+                addLog(`Objeto no reciclable detectado: ${detectionTarget.prediction.class} (${(detectionTarget.prediction.score * 100).toFixed(1)}%)`, 'warning');
+                await sleep(1500);
+            }
+        } else {
+            // No hay objetos detectados - limpiar overlay y reiniciar cooldowns
+            hideDetectionOverlay();
+            detectedObjects.clear();
         }
     } catch (err) {
         console.error('Error en detectionLoop:', err);
     }
 
-    // Volver a ejecutar
-    setTimeout(detectionLoop, 500);
+    // Volver a ejecutar - optimizado para velocidad
+    setTimeout(detectionLoop, 400);
 }
 
 function sleep(ms) {
@@ -209,7 +284,7 @@ async function processDetection(detectionData) {
             showDetectionAnimation();
             
             // Agregar al log
-            addLog(`¡Lata detectada! +1 punto (Total: ${result.points})`);
+            addLog(`¡Objeto reciclable detectado! +1 punto (Total: ${result.points})`);
             
             // Reproducir sonido de éxito (opcional)
             playSuccessSound();
@@ -222,25 +297,81 @@ async function processDetection(detectionData) {
 
 // Simular una detección (para demo/pruebas)
 function simulateDetection() {
-    addLog('Simulando detección de lata...');
+    addLog('Simulando detección de objeto reciclable...');
+    
+    // Simular un bbox en el centro de la pantalla
+    const videoWidth = video.videoWidth || 640;
+    const videoHeight = video.videoHeight || 480;
+    const fakeBbox = {
+        x: videoWidth * 0.3,
+        y: videoHeight * 0.3,
+        width: videoWidth * 0.4,
+        height: videoHeight * 0.4
+    };
     
     // Mostrar animación
-    showDetectionAnimation();
+    showDetectionAnimation('🍾 Botella (plástico)', fakeBbox);
     
     // Procesar después de un breve delay
     setTimeout(() => {
-        processDetection({});
+        processDetection({ object: 'bottle', confidence: 0.95 });
     }, 500);
 }
 
 // Mostrar animación de detección
-function showDetectionAnimation() {
+function showDetectionAnimation(objectName = '♻️ Objeto detectado', bbox = null, options = {}) {
     const overlay = document.getElementById('detection-overlay');
-    overlay.style.display = 'flex';
-    
-    setTimeout(() => {
+    if (!overlay || !video || !bbox) {
+        return;
+    }
+
+    const variant = options.variant || 'recyclable';
+
+    // Limpiar contenido previo y asegurar que el overlay se muestre
+    overlay.innerHTML = '';
+    overlay.style.display = 'block';
+
+    const videoWidth = video.videoWidth || video.clientWidth || 640;
+    const videoHeight = video.videoHeight || video.clientHeight || 480;
+    const overlayWidth = overlay.clientWidth || video.clientWidth || 640;
+    const overlayHeight = overlay.clientHeight || video.clientHeight || 480;
+
+    const scaleX = overlayWidth / videoWidth;
+    const scaleY = overlayHeight / videoHeight;
+
+    // Crear el recuadro de detección
+    const box = document.createElement('div');
+    box.className = 'detection-box';
+    if (variant === 'non-recyclable') {
+        box.classList.add('non-recyclable');
+    }
+
+    // Posicionar el recuadro según las coordenadas del objeto
+    box.style.left = `${bbox.x * scaleX}px`;
+    box.style.top = `${bbox.y * scaleY}px`;
+    box.style.width = `${bbox.width * scaleX}px`;
+    box.style.height = `${bbox.height * scaleY}px`;
+
+    // Crear la etiqueta
+    const label = document.createElement('div');
+    label.className = 'detection-label';
+    if (variant === 'non-recyclable') {
+        label.classList.add('label-non-recyclable');
+    }
+    label.textContent = objectName;
+
+    // Añadir al overlay
+    box.appendChild(label);
+    overlay.appendChild(box);
+}
+
+// Ocultar el overlay de detección
+function hideDetectionOverlay() {
+    const overlay = document.getElementById('detection-overlay');
+    if (overlay) {
         overlay.style.display = 'none';
-    }, 2000);
+        overlay.innerHTML = '';
+    }
 }
 
 // Agregar mensaje al log
